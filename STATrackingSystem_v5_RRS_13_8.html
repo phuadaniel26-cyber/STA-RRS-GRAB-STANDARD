@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STA Tracking Screen</title>
+<style>
+  :root{
+    --grab:#00B14F;
+    --grab-deep:#007A38;
+    --ink:#15241C;
+    --ink-soft:#4A5B52;
+    --board:#F2F4F1;
+    --card:#FFFFFF;
+    --amber-bg:#FEF3C7;
+    --amber-tx:#92400E;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  @font-face{font-family:'InterDeck';font-style:normal;font-weight:100 900;font-display:swap;src:url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2) format('woff2');}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:'InterDeck',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--board); color:var(--ink);
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    padding:32px 16px 64px;
+  }
+  body.embed{padding:0;background:#0B0F14;justify-content:center;}
+  .board-head{max-width:720px;text-align:center;margin-bottom:6px;}
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--grab-deep);font-weight:700;margin-bottom:10px;}
+  h1{font-size:clamp(22px,4vw,30px);font-weight:800;letter-spacing:-.02em;}
+  .law{margin-top:10px;color:var(--ink-soft);font-size:14px;line-height:1.5;font-style:italic;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:26px 0 30px;max-width:720px;}
+  .chip{
+    border:1.5px solid #CDD6CF;background:#fff;color:var(--ink-soft);
+    padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;
+    transition:all .3s var(--ease);
+  }
+  .chip:hover{border-color:var(--grab);color:var(--grab-deep);transform:translateY(-1px);}
+  .chip.active{background:var(--grab);border-color:var(--grab);color:#fff;}
+  .chip.hazard.active{background:#B45309;border-color:#B45309;}
+  .chip.play{background:var(--ink);border-color:var(--ink);color:#fff;}
+  /* ---------- phone ---------- */
+  .phone{
+    width:min(400px,94vw);background:#fff;border-radius:38px;
+    box-shadow:0 30px 60px -20px rgba(21,36,28,.25), 0 0 0 10px #1B1F1D;
+    overflow:hidden;position:relative;
+  }
+  body.embed .phone{box-shadow:none;border-radius:0;width:100%;max-width:560px;min-height:100vh;display:flex;flex-direction:column;}
+  .appbar{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 10px;font-size:14px;}
+  .appbar .back{font-size:20px;line-height:1;color:var(--ink);}
+  .appbar .help{color:#1A73E8;font-weight:600;}
+  .clockwrap{padding:6px 22px 2px;}
+  .clock-label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--grab-deep);font-weight:700;}
+  .clock{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-top:2px;}
+  .clock small{font-size:16px;font-weight:600;color:var(--ink-soft);}
+  /* ---------- scene ---------- */
+  .scene{margin:14px 16px 0;height:214px;border-radius:26px;position:relative;overflow:hidden;background:#D9F0E2;}
+  body.embed .scene{height:244px;}
+  .sky{position:absolute;inset:0;opacity:0;transition:opacity 1.4s var(--ease);}
+  .sky.on{opacity:1;}
+  .glow{
+    position:absolute;width:220px;height:220px;border-radius:50%;
+    filter:blur(46px);opacity:0;transition:opacity 1.4s var(--ease), background 1.4s var(--ease);
+    top:-90px;left:50%;transform:translateX(-50%);pointer-events:none;
+  }
+  .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;}
+  .scene.weather .flash{animation:thunder 6s infinite;}
+  @keyframes thunder{0%,91%,95%,100%{opacity:0;}92%{opacity:.28;}93%{opacity:.05;}94%{opacity:.18;}}
+  .clouds{position:absolute;top:8px;left:0;right:0;height:60px;opacity:0;transition:opacity 1.2s var(--ease);pointer-events:none;}
+  .scene.weather .clouds{opacity:1;}
+  .cloud{position:absolute;background:rgba(255,255,255,.14);border-radius:999px;animation:drift linear infinite;}
+  @keyframes drift{from{transform:translateX(-80px);}to{transform:translateX(420px);}}
+  .rain{position:absolute;inset:0;opacity:0;transition:opacity 1s var(--ease);pointer-events:none;}
+  .scene.weather .rain{opacity:1;}
+  .drop{position:absolute;top:-16px;width:1.5px;border-radius:2px;background:rgba(255,255,255,.5);animation:fall linear infinite;}
+  @keyframes fall{to{transform:translateY(240px);}}
+  .trackwrap{position:absolute;left:14px;right:14px;bottom:14px;background:rgba(9,16,12,.82);backdrop-filter:blur(8px);border-radius:24px;padding:14px 18px 6px;box-shadow:0 12px 30px -14px rgba(0,0,0,.5);}
+  svg.track{width:100%;height:96px;display:block;overflow:visible;}
+  .rail{stroke-width:5;stroke-linecap:round;}
+  .prog{stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 1.6s var(--ease);filter:drop-shadow(0 0 5px rgba(111,224,140,.6));}
+  .st-label{font-family:'InterDeck',sans-serif;font-size:10.5px;font-weight:600;fill:#7FA78F;letter-spacing:.04em;}
+  .st-label.lit{fill:#B5F0C4;}
+  .glowring{animation:ringpulse 2.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+  @keyframes ringpulse{0%,100%{opacity:.55;transform:scale(1);}50%{opacity:.2;transform:scale(1.25);}}
+  .dot{transition:fill .8s var(--ease);transform-box:fill-box;transform-origin:center;}
+  .dot.pop{animation:dotpop .6s var(--ease);}
+  @keyframes dotpop{0%{transform:scale(1);}40%{transform:scale(1.8);}100%{transform:scale(1);}}
+  .station-glyph{transition:opacity .8s var(--ease), fill 1s var(--ease);}
+  .rider{transition:transform 1.6s var(--ease), opacity .5s ease;}
+  .rider .bob{animation:bob 1.6s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-1.6px);}}
+  .scene.weather .rider .bob{animation-duration:2.6s;}
+  .steam circle{opacity:0;}
+  .scene.preparing .steam circle,.scene.peak .steam circle{animation:puff 2.6s ease-out infinite;}
+  .scene.peak .steam circle{animation-duration:1.4s;}
+  @keyframes puff{0%{opacity:0;transform:translateY(0) scale(.6);}25%{opacity:.55;}100%{opacity:0;transform:translateY(-22px) scale(1.25);}}
+  .ticket{opacity:0;transition:opacity .5s var(--ease);}
+  .scene.peak .ticket{opacity:1;}
+  .scene.peak .ticket.t2{transition-delay:.35s;}
+  .tl-lamp{opacity:.25;transition:opacity .4s;}
+  .tl-lamp.on{opacity:1;}
+  .doorglow{opacity:0;transition:opacity 1.4s var(--ease);}
+  .scene.done .doorglow{opacity:.85;}
+  /* ---------- RRS dial (Route Risk Score — the STA Safety Engine, made visible) ---------- */
+  .rrs{
+    position:absolute;top:14px;left:14px;z-index:3;
+    width:68px;height:68px;border-radius:50%;
+    background:rgba(9,16,12,.82);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 12px 30px -14px rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;transform:scale(.85);
+    transition:opacity .6s var(--ease), transform .6s var(--ease);
+  }
+  .rrs.on{opacity:1;transform:scale(1);}
+  .rrs svg.gauge{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);}
+  .rrs .track-ring{fill:none;stroke:rgba(255,255,255,.14);stroke-width:6;}
+  .rrs .val-ring{fill:none;stroke:#30C46A;stroke-width:6;stroke-linecap:round;}
+  .rrs.alert .val-ring{animation:rrsPulse 2.2s ease-in-out infinite;}
+  @keyframes rrsPulse{0%,100%{opacity:1;}50%{opacity:.68;}}
+  .rrs .core{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;line-height:1;}
+  .rrs .cap{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+  .rrs .live{width:3px;height:3px;border-radius:50%;background:var(--grab);animation:liveblink 1.6s ease-in-out infinite;}
+  @keyframes liveblink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  .rrs .num{font-size:21px;font-weight:800;color:#fff;margin-top:2px;letter-spacing:-.02em;}
+  .rrs .cond{
+    position:absolute;left:78px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    display:flex;flex-direction:column;gap:2px;
+    background:rgba(9,16,12,.7);backdrop-filter:blur(6px);
+    padding:6px 12px;border-radius:14px;
+  }
+  .rrs .cond-title{font-size:8.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+  .rrs .cond-state{font-size:12px;font-weight:700;color:rgba(255,255,255,.92);transition:opacity .4s ease;}
+  /* ---------- status card (dark nav-widget aesthetic) ---------- */
+  .statuscard{
+    margin:14px 16px 20px;background:linear-gradient(155deg,#1D2622 0%,#0F1613 100%);
+    border:1px solid rgba(255,255,255,.07);color:#F2F6F1;
+    border-radius:26px;padding:18px 20px 16px;position:relative;
+    box-shadow:0 22px 44px -20px rgba(8,14,11,.65);
+    min-height:108px;
+  }
+  .sc-top{display:flex;justify-content:space-between;align-items:flex-start;}
+  .sc-label{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(242,246,241,.55);transition:opacity .35s ease, transform .35s var(--ease);}
+  .sc-delta{
+    font-size:12px;font-weight:800;background:var(--amber-bg);color:var(--amber-tx);
+    padding:4px 10px;border-radius:999px;opacity:0;transform:scale(.6);
+  }
+  .sc-delta.show{animation:pillpop .55s var(--ease) forwards;}
+  @keyframes pillpop{0%{opacity:0;transform:scale(.6);}60%{opacity:1;transform:scale(1.12);}100%{opacity:1;transform:scale(1);}}
+  .sc-copy{margin-top:10px;font-size:16.5px;font-weight:600;line-height:1.4;color:#F2F6F1;max-width:78%;transition:opacity .35s ease, transform .35s var(--ease);}
+  .sc-glyph{
+    position:absolute;right:16px;bottom:14px;width:46px;height:46px;border-radius:50%;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);
+    display:flex;align-items:center;justify-content:center;
+    color:#9FD9B4;transition:opacity .35s ease;
+  }
+  .fadeout{opacity:0!important;transform:translateY(6px);}
+  .riderinfo{margin:0 16px 22px;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:#F6F8F6;}
+  .riderinfo .avatar{width:38px;height:38px;border-radius:50%;background:var(--grab);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .riderinfo .meta{font-size:13px;color:var(--ink-soft);line-height:1.35;}
+  .riderinfo .meta b{color:var(--ink);}
+  /* ---------- fair review sheet ---------- */
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;top:0;
+    background:rgba(11,17,14,.28);opacity:0;pointer-events:none;transition:opacity .6s var(--ease);
+    display:flex;align-items:flex-end;z-index:5;
+  }
+  .sheet.open{opacity:1;pointer-events:auto;}
+  .sheet-panel{
+    width:100%;background:#fff;border-radius:30px 30px 0 0;padding:26px 22px 26px;
+    transform:translateY(100%);transition:transform .7s var(--ease);
+    box-shadow:0 -20px 50px rgba(21,36,28,.25);
+    max-height:88%;overflow-y:auto;
+  }
+  .sheet.open .sheet-panel{transform:translateY(0);}
+  .grabber{width:44px;height:5px;border-radius:999px;background:#DDE4DE;margin:0 auto 18px;}
+  .rv-title{font-size:19px;font-weight:800;letter-spacing:-.01em;}
+  .rv-sub{font-size:13px;color:var(--ink-soft);font-weight:500;margin-top:4px;}
+  .rv-row{background:#F4F7F2;border-radius:18px;padding:14px 16px;margin-top:12px;transition:background .3s ease;}
+  .rv-row.dark{background:var(--ink);color:#F7F9F4;}
+  .rv-head{display:flex;justify-content:space-between;align-items:center;}
+  .rv-name{font-size:15px;font-weight:700;}
+  .rv-name small{font-size:12px;font-weight:500;color:var(--ink-soft);}
+  .rv-row.dark .rv-name small{color:rgba(247,249,244,.6);}
+  .rv-q{font-size:12.5px;font-weight:500;color:var(--ink-soft);margin-top:5px;}
+  .rv-row.dark .rv-q{color:rgba(247,249,244,.72);}
+  .stars{display:flex;gap:4px;}
+  .star{width:24px;height:24px;cursor:pointer;color:#CDD6CF;transition:color .15s ease, transform .2s var(--ease);}
+  .rv-row.dark .star{color:#54685D;}
+  .star.lit{color:var(--grab);}
+  .rv-row.dark .star.lit{color:#7BE3AC;}
+  .star.pop{animation:starpop .35s var(--ease);}
+  @keyframes starpop{0%{transform:scale(1);}50%{transform:scale(1.45);}100%{transform:scale(1);}}
+  .rv-context{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .ctx{font-size:11.5px;font-weight:600;background:rgba(0,177,79,.12);color:#0B7A3B;padding:5px 10px;border-radius:999px;}
+  .rv-row.dark .ctx{background:rgba(0,177,79,.22);color:#7BE3AC;}
+  .rv-submit{
+    margin-top:18px;width:100%;border:0;background:var(--grab);color:#fff;font-family:inherit;
+    font-size:15px;font-weight:700;padding:15px;border-radius:16px;cursor:pointer;
+    transition:transform .25s var(--ease), background .3s ease;
+  }
+  .rv-submit:active{transform:scale(.97);}
+  .rv-submit.sent{background:var(--ink);}
+  .caption{max-width:520px;margin-top:22px;text-align:center;color:var(--ink-soft);font-size:13.5px;line-height:1.6;}
+  .caption b{color:var(--ink);}
+  footer{margin-top:34px;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#9AA79E;}
+  body.embed .board-head, body.embed .chips, body.embed .caption, body.embed footer{display:none;}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;}}
+  body.static *{animation:none!important;transition:none!important;}
+  body.static .sc-delta.show{opacity:1;transform:scale(1);}
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body>
+
+<div class="board-head">
+  <div class="eyebrow">STA · Design Concept · Screen Journey Mockup</div>
+  <h1>The first progress bar that tracks the journey, not the order</h1>
+  <p class="law">Four dots that never change · a world that honestly does · a rider who never panics · a clock that never moves.</p>
+</div>
+
+<div class="chips" id="chips"></div>
+
+<div class="phone" id="phone">
+  <div class="appbar"><span class="back">←</span><span class="help">Get help</span></div>
+
+  <div class="clockwrap">
+    <div class="clock-label" id="clockLabel">Arriving Safely by</div>
+    <div class="clock" id="clock">2:25<small> PM</small></div>
+  </div>
+
+  <div class="scene" id="scene">
+    <div class="sky" id="skyA"></div>
+    <div class="sky" id="skyB"></div>
+    <div class="glow" id="glow"></div>
+    <div class="clouds" id="clouds"></div>
+    <div class="rain" id="rain"></div>
+    <div class="flash"></div>
+    <div class="rrs" id="rrs">
+      <svg class="gauge" viewBox="0 0 68 68">
+        <circle class="track-ring" cx="34" cy="34" r="27"/>
+        <circle class="val-ring" id="rrsRing" cx="34" cy="34" r="27" stroke-dasharray="169.65" stroke-dashoffset="169.65"/>
+      </svg>
+      <div class="core">
+        <div class="cap"><span class="live"></span>RRS</div>
+        <div class="num" id="rrsNum">0</div>
+      </div>
+      <div class="cond" id="rrsCond">
+        <span class="cond-title">Rider Risk Score</span>
+        <span class="cond-state" id="rrsState">All clear</span>
+      </div>
+    </div>
+    <div class="trackwrap">
+      <svg class="track" viewBox="0 0 360 100" id="track">
+        <line class="rail" id="rail" x1="14" y1="58" x2="346" y2="58" stroke="#28483A"/>
+        <line class="prog" id="prog" x1="14" y1="58" x2="346" y2="58" stroke="#6FE08C" stroke-dasharray="332" stroke-dashoffset="332"/>
+        <g class="station-glyph" id="g-pos" fill="#5E7367">
+          <rect x="8" y="26" width="14" height="18" rx="2"/>
+          <path d="M8 44 l3 3 l3 -3 l4 3 l4 -3" stroke="#8FAE9C" fill="none" stroke-width="1.4"/>
+        </g>
+        <g class="station-glyph" id="g-pot" fill="#5E7367">
+          <rect x="112" y="34" width="20" height="12" rx="4"/>
+          <rect x="108" y="37" width="4" height="3" rx="1.5"/>
+          <rect x="132" y="37" width="4" height="3" rx="1.5"/>
+          <g class="steam" fill="#8FA79A">
+            <circle cx="118" cy="30" r="2.6"/>
+            <circle cx="124" cy="28" r="2.2" style="animation-delay:.7s"/>
+            <circle cx="128" cy="31" r="1.9" style="animation-delay:1.3s"/>
+          </g>
+        </g>
+        <g class="station-glyph" id="g-peak" fill="#5E7367" opacity="0">
+          <rect x="96" y="38" width="12" height="8" rx="3"/>
+          <rect x="138" y="38" width="12" height="8" rx="3"/>
+          <g class="steam" fill="#8FA79A">
+            <circle cx="101" cy="34" r="2" style="animation-delay:.3s"/>
+            <circle cx="144" cy="33" r="2" style="animation-delay:1s"/>
+          </g>
+          <rect class="ticket" x="100" y="24" width="8" height="6" rx="1" opacity=".8"/>
+          <rect class="ticket t2" x="103" y="18" width="8" height="6" rx="1" opacity=".55"/>
+        </g>
+        <g id="g-traffic" opacity="0" style="transition:opacity .8s cubic-bezier(.22,1,.36,1);">
+          <rect x="236" y="30" width="4" height="28" rx="1.5" fill="#8FAE9C"/>
+          <rect x="231" y="18" width="14" height="26" rx="4" fill="#55685E"/>
+          <circle class="tl-lamp" id="lampR" cx="238" cy="25" r="3.4" fill="#E5484D"/>
+          <circle class="tl-lamp" id="lampA" cx="238" cy="33" r="3.4" fill="#F5A524"/>
+          <circle class="tl-lamp" id="lampG" cx="238" cy="41" r="3.4" fill="#30C46A"/>
+          <g fill="#7E938A">
+            <rect x="252" y="48" width="22" height="10" rx="4"/>
+            <circle cx="257" cy="59" r="3" fill="#55685E"/><circle cx="269" cy="59" r="3" fill="#55685E"/>
+            <rect x="280" y="48" width="22" height="10" rx="4"/>
+            <circle cx="285" cy="59" r="3" fill="#55685E"/><circle cx="297" cy="59" r="3" fill="#55685E"/>
+          </g>
+        </g>
+        <g class="station-glyph" fill="#5E7367">
+          <path d="M336 44 l10 -9 l10 9 v12 h-20 z"/>
+          <rect class="doorglow" x="342" y="48" width="8" height="8" rx="1" fill="#FFD27A"/>
+        </g>
+        <circle class="dot" id="d1" cx="14"  cy="58" r="5.5" fill="#33523F"/>
+        <circle class="dot" id="d2" cx="122" cy="58" r="5.5" fill="#33523F"/>
+        <circle class="dot" id="d3" cx="230" cy="58" r="5.5" fill="#33523F"/>
+        <circle class="dot" id="d4" cx="346" cy="58" r="5.5" fill="#33523F"/>
+        <text class="st-label" id="l1" x="14" y="82" text-anchor="start">Order</text>
+        <text class="st-label" id="l2" x="122" y="82" text-anchor="middle">Kitchen</text>
+        <text class="st-label" id="l3" x="230" y="82" text-anchor="middle">Road</text>
+        <text class="st-label" id="l4" x="346" y="82" text-anchor="end">Home</text>
+        <g class="rider" id="rider" opacity="0">
+          <circle class="glowring" r="14" cy="-6" fill="none" stroke="rgba(123,227,172,.55)" stroke-width="2"/>
+          <circle r="8" cy="-6" fill="rgba(123,227,172,.18)"/>
+          <g class="bob">
+            <circle cx="0" cy="-16" r="5.5" fill="#00B14F"/>
+            <rect x="-4.5" y="-19" width="9" height="4.5" rx="2" fill="#0B7A3B"/>
+            <rect x="-5" y="-11" width="10" height="9" rx="3.5" fill="#00B14F"/>
+            <circle cx="-6" cy="1.5" r="4.5" fill="none" stroke="#2E3B33" stroke-width="2"/>
+            <circle cx="6"  cy="1.5" r="4.5" fill="none" stroke="#2E3B33" stroke-width="2"/>
+            <line x1="-6" y1="-2" x2="6" y2="-2" stroke="#2E3B33" stroke-width="2"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="statuscard" id="card">
+    <div class="sc-top">
+      <div class="sc-label" id="scLabel">Order received</div>
+      <div class="sc-delta" id="scDelta">+6 min</div>
+    </div>
+    <div class="sc-copy" id="scCopy">The kitchen's been told. You're in the queue.</div>
+    <div class="sc-glyph" id="scGlyph"></div>
+  </div>
+
+  <div class="riderinfo">
+    <div class="avatar">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="7" r="3.4" fill="#fff"/>
+        <path d="M3.5 17c.8-3.4 3.4-5 6.5-5s5.7 1.6 6.5 5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="meta"><b>Your rider</b><br>Every journey narrated above. Nothing to chase, no one to blame.</div>
+  </div>
+
+  <!-- fair review sheet -->
+  <div class="sheet" id="sheet">
+    <div class="sheet-panel">
+      <div class="grabber"></div>
+      <div class="rv-title">How was the Grab Standard kept?</div>
+      <div class="rv-sub">Arrived Safely · 2:10 PM — 15 min early</div>
+      <div class="rv-row">
+        <div class="rv-head">
+          <div class="rv-name">The promise <small>· Grab</small></div>
+          <div class="stars" data-group="promise"></div>
+        </div>
+        <div class="rv-q">Was the clock honest with you?</div>
+      </div>
+      <div class="rv-row">
+        <div class="rv-head">
+          <div class="rv-name">The food <small>· Merchant</small></div>
+          <div class="stars" data-group="food"></div>
+        </div>
+        <div class="rv-q">Worth the cooking time?</div>
+      </div>
+      <div class="rv-row dark">
+        <div class="rv-head">
+          <div class="rv-name">The journey <small>· Rider</small></div>
+          <div class="stars" data-group="journey"></div>
+        </div>
+        <div class="rv-q">The journey you watched, remembered for you:</div>
+        <div class="rv-context">
+          <span class="ctx">Rode through heavy rain</span>
+          <span class="ctx">Held two junctions</span>
+          <span class="ctx">Arrived 15 min early</span>
+        </div>
+      </div>
+      <button class="rv-submit" id="rvSubmit">Submit review</button>
+    </div>
+  </div>
+</div>
+
+<p class="caption" id="caption"></p>
+<footer>The Grab Standard · STA · Screen Journey Mockup</footer>
+
+<script>
+  const EMBED = new URLSearchParams(location.search).has('embed') || (window.self !== window.top);
+  const STATIC = new URLSearchParams(location.search).has('static') || location.hash.indexOf('static') > -1;
+  const AUTO  = !STATIC && (new URLSearchParams(location.search).has('autoplay') || EMBED);
+  if (EMBED) document.body.classList.add('embed');
+  if (STATIC) document.body.classList.add('static');
+
+  const GL = {
+    receipt:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v16l-2-1.6L14 19l-2-1.6L10 19l-2-1.6L6 19z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg>',
+    receiptCheck:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v16l-2-1.6L14 19l-2-1.6L10 19l-2-1.6L6 19z"/><path d="M9 11l2 2 4-4"/></svg>',
+    pot:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="7" rx="2.5"/><line x1="3" y1="11" x2="21" y2="11"/><path d="M9 7c0-1.2 1-1.2 1-2.4M14 7c0-1.2 1-1.2 1-2.4"/></svg>',
+    pots:'<svg width="28" height="26" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="13" width="9" height="6" rx="2"/><rect x="15" y="13" width="9" height="6" rx="2"/><path d="M5 10c0-1 1-1 1-2M19 10c0-1 1-1 1-2M12.5 8c0-1 1-1 1-2"/></svg>',
+    bike:'<svg width="28" height="26" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="17" r="4"/><circle cx="20" cy="17" r="4"/><path d="M6 17l4-8h6M13 9l4 8"/></svg>',
+    drop:'<svg width="24" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c3.5 4.6 6 7.6 6 10.8A6 6 0 0 1 6 13.8C6 10.6 8.5 7.6 12 3z"/></svg>',
+    light:'<svg width="22" height="26" viewBox="0 0 24 28" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="2" width="8" height="18" rx="3"/><circle cx="12" cy="6.5" r="1.6" fill="currentColor"/><circle cx="12" cy="11" r="1.6" fill="currentColor"/><circle cx="12" cy="15.5" r="1.6" fill="currentColor"/><line x1="12" y1="20" x2="12" y2="26"/></svg>',
+    door:'<svg width="24" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21V9l8-6 8 6v12"/><rect x="9" y="13" width="6" height="8"/></svg>',
+    heart:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-7-4.6-9.2-9C1.2 7.6 3 4.5 6.2 4.5c2 0 3.4 1.1 4.3 2.6.9-1.5 2.3-2.6 4.3-2.6 3.2 0 5 3.1 3.4 6.5C16.4 15.4 12 20 12 20z"/></svg>'
+  };
+
+  const STATES = {
+    processing:{ chip:'1 · Processing', hazard:false,
+      sky:'linear-gradient(180deg,#EAF7EF 0%,#D9F0E2 100%)', glow:'rgba(0,177,79,.25)',
+      rail:'#BFD8C6', dots:1, riderAt:null,
+      label:'Order received', copy:"The kitchen's been told. You're in the queue.",
+      delta:null, glyph:'receipt',
+      caption:'<b>Act I — The Promise.</b> The clock is set once, at the honest worst case, and will never move. The card is a narrator, not an alarm.' },
+    accepted:{ chip:'1b · Rider accepts', hazard:false,
+      sky:'linear-gradient(180deg,#E7F6EE 0%,#D2EEDD 100%)', glow:'rgba(0,177,79,.3)',
+      rail:'#BFD8C6', dots:1, riderAt:1,
+      label:'Order received', copy:"A rider's taken your order. The clock above is a promise.",
+      delta:null, glyph:'receiptCheck',
+      caption:'The customer meets the rider — nameless by design. <b>Today\'s app gives you a name to blame; ours gives you a journey to understand.</b>' },
+    preparing:{ chip:'2 · Preparing', hazard:false,
+      sky:'linear-gradient(180deg,#FFF6E8 0%,#FFEBD2 100%)', glow:'rgba(255,180,80,.4)',
+      rail:'#E4CBA6', dots:2, riderAt:2, sceneClass:'preparing',
+      label:'Being prepared', copy:'Cooking takes the time it takes. That\'s the point.',
+      delta:null, glyph:'pot',
+      caption:'<b>Act II begins.</b> A miniature kitchen lives on the line — warm light, gentle steam. The rider waits nearby, unbothered.' },
+    peak:{ chip:'2b · Kitchen at capacity', hazard:true,
+      sky:'linear-gradient(180deg,#FFEED2 0%,#FFD9A3 100%)', glow:'rgba(255,150,50,.5)',
+      rail:'#DDB77E', dots:2, riderAt:2, sceneClass:'peak',
+      label:'Kitchen at capacity', copy:"The kitchen's at full capacity. Good food doesn't get rushed.",
+      delta:'+5 min', glyph:'pots',
+      caption:'<b>The Overcooked layer</b> — extra pots, tickets stacking, doubled steam. Legible chaos, <b>no literal fire.</b> The delta pill is amber, never red.' },
+    delivering:{ chip:'3 · Delivering', hazard:false,
+      sky:'linear-gradient(180deg,#E3F2FD 0%,#CFE9FB 100%)', glow:'rgba(120,190,255,.5)',
+      rail:'#A9C6DD', dots:3, riderAt:3, riding:true,
+      label:'On the way', copy:'On the road, on the promise.',
+      delta:null, glyph:'bike',
+      caption:'<b>The hero station.</b> The bar becomes a road. Clear day: nothing to explain, so the card says almost nothing. Silence is also honesty.' },
+    weather:{ chip:'3b · Weather', hazard:true,
+      sky:'linear-gradient(180deg,#46586B 0%,#2E3B4A 100%)', glow:'rgba(90,120,160,.55)',
+      rail:'#5F7386', dots:3, riderAt:3, riding:true, sceneClass:'weather', dark:true,
+      label:'Riding through rain', copy:'Heavy rain on the route. Slowing down so nothing else goes wrong.',
+      delta:'+6 min', glyph:'drop',
+      caption:'<b>The hero pattern.</b> The sky darkens, rain falls on the line, thunder flashes — and the rider\'s rhythm visibly eases. The condition takes the stage; the rider takes the credit.' },
+    traffic:{ chip:'3c · Traffic / hazard', hazard:true,
+      sky:'linear-gradient(180deg,#EBEFF2 0%,#D8DFE5 100%)', glow:'rgba(140,150,165,.4)',
+      rail:'#AEB9C1', dots:3, riderAt:3, sceneClass:'traffic',
+      label:'Holding at the junction', copy:'Rough stretch ahead. Taking the safe line through.',
+      delta:'+4 min', glyph:'light',
+      caption:'Traffic furniture appears <b>on the line</b> — lights cycling, cars queued. The bar itself stays straight: a bar that bends reads as a system error.' },
+    done:{ chip:'4 · Arrived Safely', hazard:false,
+      sky:'linear-gradient(180deg,#FFF1DC 0%,#FFE0B8 100%)', glow:'rgba(255,190,100,.55)',
+      rail:'#00B14F', dots:4, riderAt:4, sceneClass:'done',
+      label:'Arrived Safely', copy:'Delivered the right way. Enjoy.',
+      delta:null, glyph:'door',
+      caption:'<b>Act III — the promise resolves.</b> A knock, a warm light, one professional nod. <b>Arriving Safely → Arrived Safely.</b> Usually early — experienced as a gift.' },
+    review:{ chip:'5 · Fair review', hazard:false,
+      sky:'linear-gradient(180deg,#FFF1DC 0%,#FFE0B8 100%)', glow:'rgba(255,190,100,.55)',
+      rail:'#00B14F', dots:4, riderAt:4, sceneClass:'done', sheet:true,
+      label:'Arrived Safely', copy:'Delivered the right way. Enjoy.',
+      delta:null, glyph:'heart',
+      caption:'<b>Rule three, kept.</b> One page, three ratings — app, merchant, rider — and the rider\'s card carries the journey the customer just watched. <b>Blame routed to its true owner.</b>' }
+  };
+
+  const ORDER = ['processing','accepted','preparing','peak','delivering','weather','traffic','done','review'];
+  const RIDER_X = {1:14, 2:98, 3:180, 4:330};
+
+  const chipsEl = document.getElementById('chips');
+  const chipBtns = {};
+  ORDER.forEach(key=>{
+    const b=document.createElement('button');
+    b.className='chip'+(STATES[key].hazard?' hazard':'');
+    b.textContent=STATES[key].chip;
+    b.onclick=()=>{ stopAuto(); setState(key); };
+    chipBtns[key]=b;
+    chipsEl.appendChild(b);
+  });
+  const playBtn=document.createElement('button');
+  playBtn.className='chip play';
+  playBtn.textContent='▶ Play journey';
+  playBtn.onclick=()=>{ autoIdx=0; startAuto(); };
+  chipsEl.appendChild(playBtn);
+
+  const rain=document.getElementById('rain');
+  for(let i=0;i<52;i++){
+    const d=document.createElement('div');
+    d.className='drop';
+    d.style.left=(Math.random()*100)+'%';
+    d.style.height=(9+Math.random()*8)+'px';
+    d.style.opacity=(0.35+Math.random()*0.45);
+    d.style.animationDuration=(0.6+Math.random()*0.7)+'s';
+    d.style.animationDelay=(Math.random()*1.4)+'s';
+    rain.appendChild(d);
+  }
+  const clouds=document.getElementById('clouds');
+  [[0,10,90,22],[30,26,120,26],[65,6,70,18]].forEach(([l,t,w,h],i)=>{
+    const c=document.createElement('div');
+    c.className='cloud';
+    c.style.left=l+'%'; c.style.top=t+'px'; c.style.width=w+'px'; c.style.height=h+'px';
+    c.style.animationDuration=(38+i*14)+'s';
+    c.style.animationDelay=(-i*16)+'s';
+    clouds.appendChild(c);
+  });
+
+  let tlTimer=null;
+  function startLights(){
+    const seq=['lampR','lampR','lampA','lampG','lampG','lampA'];
+    let i=0; stopLights();
+    tlTimer=setInterval(()=>{
+      ['lampR','lampA','lampG'].forEach(id=>document.getElementById(id).classList.remove('on'));
+      document.getElementById(seq[i%seq.length]).classList.add('on');
+      i++;
+    },900);
+  }
+  function stopLights(){ if(tlTimer){clearInterval(tlTimer);tlTimer=null;} }
+
+  const scene=document.getElementById('scene');
+  const skyA=document.getElementById('skyA'), skyB=document.getElementById('skyB');
+  const glow=document.getElementById('glow');
+  const scLabel=document.getElementById('scLabel');
+  const scCopy=document.getElementById('scCopy');
+  const scDelta=document.getElementById('scDelta');
+  const scGlyph=document.getElementById('scGlyph');
+  const caption=document.getElementById('caption');
+  const rider=document.getElementById('rider');
+  const sheet=document.getElementById('sheet');
+  let skyFlip=false, prevDots=0;
+
+  // ---------- RRS dial (Route Risk Score — the STA Safety Engine, made visible) ----------
+  const rrsEl=document.getElementById('rrs');
+  const rrsRing=document.getElementById('rrsRing');
+  const rrsNum=document.getElementById('rrsNum');
+  const rrsCond=document.getElementById('rrsCond');
+  const rrsState=document.getElementById('rrsState');
+  const RRS_C=169.65; // circumference of the r=27 ring
+  const NO_MOTION = STATIC || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // per-state RIDER-risk score + one-word condition. Risk to the RIDER from ANY source —
+  // road, weather, OR a packed kitchen (which forces the rider to make up the lost minutes).
+  const RRS = {
+    processing:[18,'All clear'], accepted:[20,'All clear'], preparing:[22,'All clear'],
+    peak:[64,'Kitchen packed'], delivering:[30,'Open road'],
+    traffic:[79,'Congestion'], weather:[88,'Heavy rain'],
+    done:[14,'Arrived safely'], review:[14,'Arrived safely']
+  };
+  // colour anchors reuse the traffic-light lamp hexes already living in the artwork
+  const RRS_STOPS=[[0,[48,196,106]],[65,[245,165,36]],[90,[229,72,77]],[100,[229,72,77]]];
+  function rrsColor(v){
+    let a=RRS_STOPS[0], b=RRS_STOPS[RRS_STOPS.length-1];
+    for(let i=0;i<RRS_STOPS.length-1;i++){
+      if(v>=RRS_STOPS[i][0] && v<=RRS_STOPS[i+1][0]){ a=RRS_STOPS[i]; b=RRS_STOPS[i+1]; break; }
+    }
+    const t=(b[0]===a[0])?0:(v-a[0])/(b[0]-a[0]);
+    const c=a[1].map((ch,i)=>Math.round(ch+(b[1][i]-ch)*t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  let rrsShown=0, rrsTarget=0, rrsAnimating=false, rrsJitter=null;
+  function paintRRS(v){
+    rrsRing.style.strokeDashoffset = RRS_C*(1 - v/100);
+    rrsRing.style.stroke = rrsColor(v);
+    rrsNum.textContent = Math.round(v);
+    rrsEl.classList.toggle('alert', v>=80);
+  }
+  function setRRS(target,label){
+    rrsTarget=target;
+    rrsState.style.opacity=0;
+    setTimeout(()=>{ rrsState.textContent=label; rrsState.style.opacity=1; },300);
+    if(NO_MOTION){ rrsShown=target; paintRRS(target); return; }
+    const from=rrsShown, diff=target-from, dur=700, t0=performance.now();
+    rrsAnimating=true;
+    const tick=(now)=>{
+      const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3); // easeOutCubic
+      rrsShown=from+diff*e; paintRRS(rrsShown);
+      if(p<1){ requestAnimationFrame(tick); }
+      else { rrsShown=target; paintRRS(target); rrsAnimating=false; }
+    };
+    requestAnimationFrame(tick);
+  }
+  function startRRSJitter(){ // subtle idle drift = "constantly calculating", never crossing a zone
+    if(NO_MOTION) return;
+    if(rrsJitter) clearInterval(rrsJitter);
+    const zone=x=> x<60?0 : x<80?1 : 2;
+    rrsJitter=setInterval(()=>{
+      if(rrsAnimating) return;
+      const j=Math.max(0,Math.min(100, rrsTarget+(Math.random()*2-1)));
+      if(zone(j)===zone(rrsTarget)) paintRRS(j);
+    },1300);
+  }
+
+  function setState(key){
+    const s=STATES[key];
+    Object.values(chipBtns).forEach(c=>c.classList.remove('active'));
+    if(chipBtns[key]) chipBtns[key].classList.add('active');
+
+    scene.className='scene'+(s.sceneClass?' '+s.sceneClass:'');
+    // crossfade skies
+    const inSky = skyFlip ? skyA : skyB;
+    const outSky = skyFlip ? skyB : skyA;
+    inSky.style.background=s.sky;
+    inSky.classList.add('on'); outSky.classList.remove('on');
+    skyFlip=!skyFlip;
+    glow.style.background='radial-gradient(circle,'+s.glow+' 0%,transparent 70%)';
+    glow.style.opacity=1;
+
+    document.getElementById('rail').setAttribute('stroke','#28483A');
+    const px = s.riderAt ? (key==='traffic' ? 210 : RIDER_X[s.riderAt]) : ({1:14,2:122,3:230,4:346}[s.dots] || 14);
+    document.getElementById('prog').style.strokeDashoffset = (332 - (px - 14));
+    for(let i=1;i<=4;i++){
+      const dot=document.getElementById('d'+i);
+      dot.setAttribute('fill', i<=s.dots ? '#7BE3AC' : '#33523F');
+      document.getElementById('l'+i).classList.toggle('lit', i<=s.dots);
+      if(i===s.dots && s.dots>prevDots){ dot.classList.remove('pop'); void dot.getBBox; dot.classList.add('pop'); setTimeout(()=>dot.classList.remove('pop'),700); }
+    }
+    prevDots=s.dots;
+    document.querySelectorAll('.station-glyph').forEach(g=>{
+      g.setAttribute('fill','#8FAE9C');
+    });
+    document.getElementById('g-peak').setAttribute('opacity', key==='peak' ? 1 : 0);
+    document.getElementById('g-traffic').style.opacity = key==='traffic' ? 1 : 0;
+    key==='traffic' ? startLights() : stopLights();
+
+    if(s.riderAt){
+      rider.setAttribute('opacity',1);
+      const x = key==='traffic' ? 210 : RIDER_X[s.riderAt];
+      rider.style.transform=`translate(${x}px,54px)`;
+      rider.setAttribute('transform',`translate(${x},54)`);
+    } else {
+      rider.setAttribute('opacity',0);
+    }
+
+    [scLabel,scCopy,scGlyph].forEach(el=>el.classList.add('fadeout'));
+    setTimeout(()=>{
+      scLabel.textContent=s.label;
+      scCopy.textContent=s.copy;
+      scGlyph.innerHTML=GL[s.glyph]||'';
+      [scLabel,scCopy,scGlyph].forEach(el=>el.classList.remove('fadeout'));
+    },360);
+    // ---- RRS dial: the engine reads the ride, and the Safe Minutes follow from it ----
+    const r = RRS[key] || [20,'All clear'];
+    if(!rrsEl.classList.contains('on')) rrsEl.classList.add('on');
+    setRRS(r[0], r[1]);
+    // delta pill: when rider risk is elevated, let the dial climb FIRST so the eye reads
+    // cause (risk detected) -> effect (Safe Minutes given). Otherwise show immediately.
+    if(s.delta){
+      const showPill=()=>{ scDelta.textContent=s.delta; scDelta.classList.remove('show'); void scDelta.offsetWidth; scDelta.classList.add('show'); };
+      if(r[0]>=60 && !NO_MOTION){ setTimeout(showPill,520); } else { showPill(); }
+    } else { scDelta.classList.remove('show'); }
+
+    sheet.classList.toggle('open', !!s.sheet);
+    caption.innerHTML=s.caption;
+  }
+
+  // ---------- stars ----------
+  const STAR='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.9 6.2 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>';
+  document.querySelectorAll('.stars').forEach(group=>{
+    for(let i=1;i<=5;i++){
+      const s=document.createElement('div');
+      s.className='star'; s.innerHTML=STAR; s.dataset.v=i;
+      s.onclick=()=>{
+        [...group.children].forEach((c,j)=>{
+          c.classList.toggle('lit', j<i);
+          if(j<i){ c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop'); }
+        });
+      };
+      group.appendChild(s);
+    }
+  });
+  // preset: journey 5 stars (the point of the demo)
+  function presetStars(){
+    document.querySelectorAll('.stars').forEach(g=>{
+      const n = g.dataset.group==='food' ? 4 : 5;
+      [...g.children].forEach((c,j)=>c.classList.toggle('lit', j<n));
+    });
+  }
+  document.getElementById('rvSubmit').onclick=function(){
+    this.textContent='Review sent — fairly';
+    this.classList.add('sent');
+    setTimeout(()=>{ this.textContent='Submit review'; this.classList.remove('sent'); sheet.classList.remove('open'); },1600);
+  };
+
+  // ---------- autoplay ----------
+  let autoTimer=null, autoIdx=0;
+  const DWELL={processing:2600,accepted:2800,preparing:3000,peak:3600,delivering:3000,weather:4600,traffic:3600,done:3400,review:5200};
+  function startAuto(){
+    stopAuto();
+    const step=()=>{
+      const key=ORDER[autoIdx%ORDER.length];
+      setState(key);
+      if(key==='review') setTimeout(presetStars,900);
+      autoIdx++;
+      autoTimer=setTimeout(step, DWELL[key]);
+    };
+    step();
+  }
+  function stopAuto(){ if(autoTimer){clearTimeout(autoTimer);autoTimer=null;} }
+
+  if(STATIC){ setState('weather'); } else if(AUTO){ startAuto(); } else { setState('processing'); }
+  startRRSJitter();
+</script>
+</body>
+</html>
