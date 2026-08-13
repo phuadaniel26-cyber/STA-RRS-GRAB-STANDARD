@@ -2,8 +2,6 @@
 
 The interactive hero execution for **The Grab Standard**, a student campaign entry for the **Kancil Awards** (CO5 · Best Idea for Social Good). This is the customer's live delivery-tracking screen, rebuilt around **STA — Safe Time of Arrival** and the **Rider Risk Score (RRS)** safety engine.
 
-**Live prototype:** https://sta-prototype-grabfood-kancil.vercel.app
-
 ---
 
 ## What this is
